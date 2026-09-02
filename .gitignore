@@ -1,0 +1,6 @@
+*.dcm
+*.gz
+*.tar
+*.parquet
+lctsc_download/README.md
+/lctsc_download
