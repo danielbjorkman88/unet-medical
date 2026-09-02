@@ -1,2 +1,2 @@
-# !\[Screenshot](structure\_set\_CT.PNG)
+# !\[Screenshot](structure\_set\_CT.png)
 
