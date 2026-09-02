@@ -4,7 +4,8 @@ import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
-
+import glob
+import nibabel as nib
 
 # ============================================================
 # 1. Settings
@@ -17,14 +18,150 @@ N_VAL = 20
 
 BATCH_SIZE = 10
 
-N_EPOCHS = 5
+N_EPOCHS = 6
 
 LEARNING_RATE = 1e-3
+
+
+
+image_files = sorted(
+    glob.glob(
+        "patient_data/images/*.nii.gz"
+    )
+)
+
+mask_files = sorted(
+    glob.glob(
+        "patient_data/masks/*.nii.gz"
+    )
+)
 
 
 # ============================================================
 # 2. Synthetic dataset
 # ============================================================
+
+
+class CT2DDataset(Dataset):
+
+    def __init__(
+        self,
+        image_files,
+        mask_files,
+        image_size=64
+    ):
+
+        self.image_files = image_files
+        self.mask_files = mask_files
+        self.image_size = image_size
+
+    def __len__(self):
+
+        return len(self.image_files)
+
+    def __getitem__(self, idx):
+
+        # ----------------------------------------------------
+        # Load CT volume
+        # ----------------------------------------------------
+
+        ct = nib.load(
+            self.image_files[idx]
+        ).get_fdata()
+
+        # ----------------------------------------------------
+        # Load segmentation mask
+        # ----------------------------------------------------
+
+        mask = nib.load(
+            self.mask_files[idx]
+        ).get_fdata()
+
+        # ----------------------------------------------------
+        # Select a random slice
+        # ----------------------------------------------------
+
+        slice_number = np.random.randint(
+            0,
+            ct.shape[2]
+        )
+
+        image = ct[:, :, slice_number]
+
+        mask = mask[:, :, slice_number]
+
+        # ----------------------------------------------------
+        # CT windowing
+        # ----------------------------------------------------
+
+        window_center = 40
+        window_width = 400
+
+        lower = (
+            window_center
+            - window_width / 2
+        )
+
+        upper = (
+            window_center
+            + window_width / 2
+        )
+
+        image = np.clip(
+            image,
+            lower,
+            upper
+        )
+
+        # ----------------------------------------------------
+        # Normalize to 0-1
+        # ----------------------------------------------------
+
+        image = (
+            image - lower
+        ) / (
+            upper - lower
+        )
+
+        # ----------------------------------------------------
+        # Resize
+        # ----------------------------------------------------
+
+        from skimage.transform import resize
+
+        image = resize(
+            image,
+            (
+                self.image_size,
+                self.image_size
+            ),
+            anti_aliasing=True
+        )
+
+        mask = resize(
+            mask,
+            (
+                self.image_size,
+                self.image_size
+            ),
+            order=0,
+            preserve_range=True
+        )
+
+        # ----------------------------------------------------
+        # Convert to PyTorch tensors
+        # ----------------------------------------------------
+
+        image = torch.tensor(
+            image,
+            dtype=torch.float32
+        ).unsqueeze(0)
+
+        mask = torch.tensor(
+            (mask > 0).astype(np.float32)
+        ).unsqueeze(0)
+
+        return image, mask
 
 class CircleDataset(Dataset):
 
