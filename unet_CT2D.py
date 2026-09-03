@@ -1320,6 +1320,8 @@ else:
     val_precision = []
 
     best_val_dice = -1.0
+    best_val_precision = -1.0
+    best_model_selection_score = -1.0
 
     best_model_path = os.path.join(
         OUTPUT_DIR,
@@ -1440,15 +1442,19 @@ else:
             validation_precision
         )
         
+        model_selection_score = (
+            0.6 * validation_dice
+            + 0.4 * validation_precision
+        )
 
         # ====================================================
         # SAVE BEST MODEL
         # ====================================================
 
-        if validation_dice > best_val_dice:
-
-            best_val_dice = validation_dice
-
+        if model_selection_score > best_model_selection_score:
+        
+            best_model_selection_score = model_selection_score
+        
             torch.save(
                 model.state_dict(),
                 MODEL_PATH
