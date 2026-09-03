@@ -1494,7 +1494,7 @@ else:
         )
 
         loss_ax.set_ylabel(
-            "Dice loss"
+            "Loss"
         )
 
         loss_ax.grid(
@@ -2130,6 +2130,10 @@ print(
     comparison_path
 )
 
+history_path = os.path.join(
+    OUTPUT_DIR,
+    "training_history.txt"
+)
 
 # ============================================================
 # 29. SAVE TRAINING HISTORY
@@ -2137,10 +2141,7 @@ print(
 
 if "train_losses" in locals():
 
-    history_path = os.path.join(
-        OUTPUT_DIR,
-        "training_history.txt"
-    )
+
 
     with open(
         history_path,
