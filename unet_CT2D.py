@@ -1064,8 +1064,43 @@ class UNet(nn.Module):
 
 
 # ============================================================
-# 18. DICE FUNCTIONS
+# 18. LOSS FUNCTIONS
 # ============================================================
+
+
+def combined_loss(prediction, target, dice_weight=0.5):
+    """
+    Combined Dice + Binary Cross Entropy loss.
+    """
+
+    # BCE operates directly on logits
+    bce = nn.functional.binary_cross_entropy_with_logits(
+        prediction,
+        target
+    )
+
+    # Convert logits to probabilities for Dice
+    probability = torch.sigmoid(prediction)
+
+    probability = probability.view(-1)
+    target = target.view(-1)
+
+    intersection = (probability * target).sum()
+
+    dice = (
+        2.0 * intersection + 1e-6
+    ) / (
+        probability.sum()
+        + target.sum()
+        + 1e-6
+    )
+
+    dice_loss = 1.0 - dice
+
+    return (
+        dice_weight * dice_loss
+        + (1.0 - dice_weight) * bce
+    )
 
 def dice_loss(
     logits,
@@ -1098,6 +1133,76 @@ def dice_loss(
 
     return 1 - dice
 
+
+def volume_difference_percent(
+    prediction_mask,
+    ground_truth_mask):
+    """
+    Calculate percentage difference in segmented volume.
+
+    Positive = prediction is larger.
+    Negative = prediction is smaller.
+    """
+
+    predicted_volume = np.sum(
+        prediction_mask > 0
+    )
+
+    ground_truth_volume = np.sum(
+        ground_truth_mask > 0
+    )
+
+    if ground_truth_volume == 0:
+        return 0.0
+
+    difference = (
+        predicted_volume
+        - ground_truth_volume
+    )
+
+    percentage = (
+        difference
+        / ground_truth_volume
+    ) * 100.0
+
+    return percentage
+
+def precision_score(prediction, target):
+    """
+    Pixel-wise precision.
+
+    Precision = TP / (TP + FP)
+
+    Measures how much of the predicted lung
+    is actually lung according to the ground truth.
+    """
+
+    prediction = torch.sigmoid(prediction)
+
+    prediction = (
+        prediction > 0.5
+    ).float()
+
+    prediction = prediction.view(-1)
+    target = target.view(-1)
+
+    true_positive = (
+        prediction * target
+    ).sum()
+
+    false_positive = (
+        prediction * (1 - target)
+    ).sum()
+
+    precision = (
+        true_positive + 1e-6
+    ) / (
+        true_positive
+        + false_positive
+        + 1e-6
+    )
+
+    return precision.item()
 
 def dice_score(
     logits,
@@ -1212,6 +1317,7 @@ else:
 
     train_losses = []
     val_dices = []
+    val_precision = []
 
     best_val_dice = -1.0
 
@@ -1254,9 +1360,15 @@ else:
 
             predictions = model(images)
 
-            loss = dice_loss(
+            # loss = dice_loss(
+            #     predictions,
+            #     masks
+            # )
+            
+            loss = combined_loss(
                 predictions,
-                masks
+                masks,
+                dice_weight=0.5
             )
 
             optimizer.zero_grad()
@@ -1281,6 +1393,7 @@ else:
         model.eval()
 
         validation_dice = 0.0
+        validation_precision = 0.0
 
         with torch.no_grad():
 
@@ -1295,9 +1408,23 @@ else:
                     predictions,
                     masks
                 )
+                
+                validation_precision += precision_score(
+                    predictions,
+                    masks
+                )
+                
+                # volume_difference = volume_difference_percent(
+                #     predicted_volume_mask,
+                #     original_volume_mask
+                # )
 
 
         validation_dice /= len(val_loader)
+        
+        validation_precision /= len(val_loader)
+        
+        
 
 
         train_losses.append(
@@ -1307,7 +1434,12 @@ else:
         val_dices.append(
             validation_dice
         )
-
+        
+        
+        val_precision.append(
+            validation_precision
+        )
+        
 
         # ====================================================
         # SAVE BEST MODEL
@@ -1378,11 +1510,26 @@ else:
                 len(val_dices) + 1
             ),
             val_dices,
+            label="dice",
+            color = 'C0',
             marker="o"
         )
-
+        
+        dice_ax.plot(
+            range(
+                1,
+                len(val_precision) + 1
+            ),
+            val_precision,
+            label="precision",
+            color = 'C1',
+            marker="x"
+        )
+        
+        dice_ax.legend()
+        
         dice_ax.set_title(
-            "Validation Dice"
+            "Validation metrics"
         )
 
         dice_ax.set_xlabel(
@@ -1390,7 +1537,7 @@ else:
         )
 
         dice_ax.set_ylabel(
-            "Dice score"
+            "Score"
         )
 
         dice_ax.set_ylim(
@@ -1988,111 +2135,121 @@ print(
 # 29. SAVE TRAINING HISTORY
 # ============================================================
 
-history_path = os.path.join(
-    OUTPUT_DIR,
-    "training_history.txt"
-)
+if "train_losses" in locals():
 
-with open(
-    history_path,
-    "w",
-    encoding="utf-8"
-) as file:
-
-    file.write(
-        "LCTSC LUNG U-NET TRAINING\n"
+    history_path = os.path.join(
+        OUTPUT_DIR,
+        "training_history.txt"
     )
 
-    file.write(
-        "=========================\n\n"
-    )
-
-    file.write(
-        f"Image size: {IMAGE_SIZE}\n"
-    )
-
-    file.write(
-        f"Batch size: {BATCH_SIZE}\n"
-    )
-
-    file.write(
-        f"Epochs: {N_EPOCHS}\n"
-    )
-
-    file.write(
-        f"Learning rate: {LEARNING_RATE}\n"
-    )
-
-    file.write(
-        f"Device: {DEVICE}\n\n"
-    )
-
-    file.write(
-        "Training patients:\n"
-    )
-
-    for patient_id in train_ids:
+    with open(
+        history_path,
+        "w",
+        encoding="utf-8"
+    ) as file:
 
         file.write(
-            f"  {patient_id}\n"
+            "LCTSC LUNG U-NET TRAINING\n"
         )
-
-    file.write(
-        "\nValidation patients:\n"
-    )
-
-    for patient_id in val_ids:
 
         file.write(
-            f"  {patient_id}\n"
+            "=========================\n\n"
         )
-
-    file.write(
-        "\n"
-    )
-
-    file.write(
-        "Epoch | Training loss | Validation Dice\n"
-    )
-
-    for i in range(
-        len(train_losses)
-    ):
 
         file.write(
-            f"{i + 1:5d} | "
-            f"{train_losses[i]:.6f} | "
-            f"{val_dices[i]:.6f}\n"
+            f"Image size: {IMAGE_SIZE}\n"
         )
 
-    file.write(
-        "\n"
+        file.write(
+            f"Batch size: {BATCH_SIZE}\n"
+        )
+
+        file.write(
+            f"Epochs: {N_EPOCHS}\n"
+        )
+
+        file.write(
+            f"Learning rate: {LEARNING_RATE}\n"
+        )
+
+        file.write(
+            f"Device: {DEVICE}\n\n"
+        )
+
+        file.write(
+            "Training patients:\n"
+        )
+
+        for patient_id in train_ids:
+
+            file.write(
+                f"  {patient_id}\n"
+            )
+
+        file.write(
+            "\nValidation patients:\n"
+        )
+
+        for patient_id in val_ids:
+
+            file.write(
+                f"  {patient_id}\n"
+            )
+
+        file.write(
+            "\n"
+        )
+
+        file.write(
+            "Epoch | Training loss | Validation Dice | Validation Precision\n"
+        )
+
+        for i in range(
+            len(train_losses)
+        ):
+
+            file.write(
+                f"{i + 1:5d} | "
+                f"{train_losses[i]:.6f} | "
+                f"{val_dices[i]:.6f} | "
+                f"{val_precision[i]:.6f}\n"
+            )
+
+        file.write(
+            "\n"
+        )
+
+        file.write(
+            f"Best validation Dice: "
+            f"{best_val_dice:.6f}\n"
+        )
+
+        file.write(
+            f"Prediction patient: "
+            f"{prediction_patient_id}\n"
+        )
+
+        file.write(
+            f"Complete-volume Dice: "
+            f"{volume_dice:.6f}\n"
+        )
+
+    print()
+    print(
+        "Training history saved to:"
     )
 
-    file.write(
-        f"Best validation Dice: "
-        f"{best_val_dice:.6f}\n"
+    print(
+        history_path
     )
 
-    file.write(
-        f"Prediction patient: "
-        f"{prediction_patient_id}\n"
+else:
+
+    print()
+    print(
+        "Training history not available because "
+        "the existing model was loaded."
     )
-
-    file.write(
-        f"Complete-volume Dice: "
-        f"{volume_dice:.6f}\n"
-    )
-
-
-print()
-print(
-    "Training history saved to:"
-)
-
-print(
-    history_path
-)
 
 
 # ============================================================
@@ -2106,12 +2263,12 @@ print("=" * 70)
 
 print()
 print(
-    "1. Best model:"
+    "1. Trained model:"
 )
 
 print(
     "   ",
-    best_model_path
+    MODEL_PATH
 )
 
 print()
