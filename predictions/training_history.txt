@@ -1,0 +1,66 @@
+LCTSC LUNG U-NET TRAINING
+=========================
+
+Image size: 128
+Batch size: 8
+Epochs: 12
+Learning rate: 0.001
+Device: cpu
+
+Training patients:
+  LCTSC-Train-S1-009
+  LCTSC-Train-S2-006
+  LCTSC-Train-S1-010
+  LCTSC-Train-S3-011
+  LCTSC-Train-S1-001
+  LCTSC-Train-S1-005
+  LCTSC-Train-S3-006
+  LCTSC-Train-S2-004
+  LCTSC-Train-S2-008
+  LCTSC-Train-S1-006
+  LCTSC-Train-S1-012
+  LCTSC-Train-S1-002
+  LCTSC-Train-S3-001
+  LCTSC-Train-S1-003
+  LCTSC-Train-S3-010
+  LCTSC-Train-S1-004
+  LCTSC-Train-S3-009
+  LCTSC-Train-S2-012
+  LCTSC-Train-S3-004
+  LCTSC-Train-S1-011
+  LCTSC-Train-S2-011
+  LCTSC-Train-S2-007
+  LCTSC-Train-S3-002
+  LCTSC-Train-S1-007
+  LCTSC-Train-S2-009
+  LCTSC-Train-S1-008
+  LCTSC-Train-S2-003
+  LCTSC-Train-S3-005
+
+Validation patients:
+  LCTSC-Train-S3-012
+  LCTSC-Train-S2-002
+  LCTSC-Train-S3-003
+  LCTSC-Train-S3-007
+  LCTSC-Train-S2-005
+  LCTSC-Train-S3-008
+  LCTSC-Train-S2-010
+  LCTSC-Train-S2-001
+
+Epoch | Training loss | Validation Dice
+    1 | 0.452889 | 0.922087
+    2 | 0.072415 | 0.924728
+    3 | 0.037681 | 0.917472
+    4 | 0.028744 | 0.925792
+    5 | 0.028474 | 0.930301
+    6 | 0.025065 | 0.941769
+    7 | 0.027622 | 0.921035
+    8 | 0.024493 | 0.569560
+    9 | 0.025496 | 0.924983
+   10 | 0.022629 | 0.946250
+   11 | 0.021284 | 0.947777
+   12 | 0.022304 | 0.922188
+
+Best validation Dice: 0.947777
+Prediction patient: LCTSC-Train-S3-012
+Complete-volume Dice: 0.969577
